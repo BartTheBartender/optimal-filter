@@ -1,11 +1,14 @@
 pub mod cell;
 pub mod filter;
-pub mod poset;
 
-use crate::matrix::{
-    Matrix,
-    ring::{Ring, Z2},
+use crate::{
+    matrix::{
+        Matrix,
+        ring::{Ring, Z2},
+    },
+    poset::Poset,
 };
+
 use cell::Cell;
 use filter::Filter;
 use std::{
@@ -163,7 +166,7 @@ impl<
         }
     }
 
-    pub fn sort_boundary<'a>(&'a mut self, filter: &Filter<'a, T, M>) -> &'a mut Self {
+    pub fn apply_filter<'a>(&'a mut self, filter: &Filter<'a, T, M>) -> &'a mut Self {
         assert!(
             filter.complex == self,
             "The domain of the filter is incorrect"
@@ -237,6 +240,63 @@ impl<
         self
     }
 
+    /// Assuming that `self` is already filtered.
+    pub fn depth_poset_idx(&self) -> Vec<Poset<(Cell<usize>, Cell<usize>)>> {
+        self.boundary
+            .iter()
+            .enumerate()
+            .map(|(dim, matrix)| {
+                let (bd_pairs_1, b_1): (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize)>) =
+                    matrix.clone().algorithm_1();
+                let (bd_pairs_2, b_2): (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize)>) =
+                    matrix.clone().algorithm_2();
+                assert_eq!(
+                    bd_pairs_1, bd_pairs_2,
+                    "The bd_pairs are not identical in depth poset algorithm."
+                );
+
+                bd_pairs_1
+                    .into_iter()
+                    .flat_map(|x| bd_pairs_2.iter().cloned().map(move |y| (x, y)))
+                    .filter(|(x, y): &((usize, usize), (usize, usize))| {
+                        b_1.contains(&(x.0, y.0)) || b_2.contains(&(x.1, y.1))
+                    })
+                    .map(|(x, y)| {
+                        (
+                            (Cell(x.0, dim), Cell(x.1, dim + 1)),
+                            (Cell(y.0, dim), Cell(y.1, dim + 1)),
+                        )
+                    })
+                    .collect::<Poset<(Cell<usize>, Cell<usize>)>>()
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn label_depth_poset(&self, depth_poset_idx: Vec<Poset<(Cell<usize>, Cell<usize>)>>) -> Vec<Poset<(Cell<T>, Cell<T>)>> {
+        let reverse = self
+            .indices
+            .iter()
+            .map(|(k, v)| (v, k))
+            .collect::<BTreeMap<_, _>>();
+
+        depth_poset_idx
+            .into_iter()
+            .map(|poset| {
+                poset.map(|(x, y)| {
+                    (
+                        *reverse
+                            .get(&x)
+                            .expect("The cell is in the proper bounds.")
+                            .clone(),
+                        *reverse
+                            .get(&y)
+                            .expect("The cell is in the proper bounds.")
+                            .clone(),
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+    }
 }
 
 impl<
@@ -304,4 +364,7 @@ mod test {
             vec![Cell(0, 1), Cell(1, 1)]
         );
     }
+
+    #[test]
+    fn depth_poset()
 }
