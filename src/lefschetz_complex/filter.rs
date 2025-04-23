@@ -11,6 +11,34 @@ pub struct Filter<'a, T: PartialEq + Eq + Copy + Clone + PartialOrd + Ord, M: Ma
 }
 
 impl<'a, T: PartialEq + Eq + Copy + Clone + PartialOrd + Ord, M: Matrix<Z2>> Filter<'a, T, M> {
+    pub fn from_ordering_idx<Ordering: IntoIterator<Item = Cell<usize>>>(
+        complex: &'a LefschetzComplex<T, M>,
+        ordering_: Ordering,
+    ) -> Self {
+        let ordering = ordering_.into_iter().collect::<Vec<_>>();
+        assert_eq!(
+            complex.indices.len(),
+            ordering.len(),
+            "The filter is not bijective"
+        );
+        Self { complex, ordering }
+    }
+
+    pub fn from_ordering<Ordering: IntoIterator<Item = Cell<T>>>(
+        complex: &'a LefschetzComplex<T, M>,
+        ordering: Ordering,
+    ) -> Self {
+        Self::from_ordering_idx(
+            complex,
+            ordering.into_iter().map(|cell| {
+                *complex
+                    .indices
+                    .get(&cell)
+                    .expect("This cell should belong to the complex.")
+            }),
+        )
+    }
+
     pub const fn new(complex: &'a LefschetzComplex<T, M>) -> Self {
         Self {
             complex,
@@ -56,7 +84,7 @@ mod test {
 
         for filter in complex.filters() {
             println!("{:?}", filter);
-            complex.clone().sort_boundary(&filter);
+            complex.filter_boundary(&filter);
         }
 
         todo!()

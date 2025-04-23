@@ -166,7 +166,7 @@ impl<
         }
     }
 
-    pub fn apply_filter<'a>(&'a mut self, filter: &Filter<'a, T, M>) -> &'a mut Self {
+    pub fn filter_boundary<'a>(&'a self, filter: &Filter<'a, T, M>) -> Self {
         assert!(
             filter.complex == self,
             "The domain of the filter is incorrect"
@@ -183,8 +183,7 @@ impl<
             })
             .collect::<Vec<_>>();
 
-        println!("{:?}", old_to_new);
-        let new_indices = self
+        let indices = self
             .indices
             .iter()
             .map(|(cell, Cell(old_name, dim))| {
@@ -199,7 +198,6 @@ impl<
                 )
             })
             .collect::<BTreeMap<_, _>>();
-        println!("{:?}", new_indices);
 
         let new_to_old = old_to_new
             .into_iter()
@@ -211,7 +209,7 @@ impl<
             })
             .collect::<Vec<_>>();
 
-        let new_boundary = self
+        let boundary = self
             .boundary
             .iter()
             .enumerate()
@@ -235,9 +233,11 @@ impl<
             })
             .collect::<Vec<M>>();
 
-        self.indices = new_indices;
-        self.boundary = new_boundary;
-        self
+        Self {
+            dim_count: self.dim_count.clone(),
+            boundary,
+            indices,
+        }
     }
 
     /// Assuming that `self` is already filtered.
@@ -272,7 +272,12 @@ impl<
             .collect::<Vec<_>>()
     }
 
-    pub fn label_depth_poset(&self, depth_poset_idx: Vec<Poset<(Cell<usize>, Cell<usize>)>>) -> Vec<Poset<(Cell<T>, Cell<T>)>> {
+    /// Due to performance issued `depth_poset_idx` outputs a depth poset build with `usize`,
+    /// not `T`. This function gives correct labels.
+    pub fn label_depth_poset(
+        &self,
+        depth_poset_idx: Vec<Poset<(Cell<usize>, Cell<usize>)>>,
+    ) -> Vec<Poset<(Cell<T>, Cell<T>)>> {
         let reverse = self
             .indices
             .iter()
@@ -284,19 +289,20 @@ impl<
             .map(|poset| {
                 poset.map(|(x, y)| {
                     (
-                        *reverse
-                            .get(&x)
-                            .expect("The cell is in the proper bounds.")
-                            .clone(),
-                        *reverse
-                            .get(&y)
-                            .expect("The cell is in the proper bounds.")
-                            .clone(),
+                        **reverse.get(&x).expect("The cell is in the proper bounds."),
+                        **reverse.get(&y).expect("The cell is in the proper bounds."),
                     )
                 })
             })
             .collect::<Vec<_>>()
     }
+
+    // /// Returns all the possible depth posets. For now computes them using all possible filters.
+    // pub fn all_depth_poset_idx(
+    //     &self,
+    // ) -> impl Iterator<Item = Vec<Poset<(Cell<usize>, Cell<usize>)>>> {
+    //     self.filters().map(|filter|
+    // }
 }
 
 impl<
@@ -366,5 +372,35 @@ mod test {
     }
 
     #[test]
-    fn depth_poset()
+    #[ignore]
+    fn filter_boundary() {
+        let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
+            (Cell("a", 0), Cell("ab", 1)),
+            (Cell("b", 0), Cell("ab", 1)),
+            (Cell("a", 0), Cell("ac", 1)),
+            (Cell("c", 0), Cell("ac", 1)),
+            (Cell("b", 0), Cell("bc", 1)),
+            (Cell("c", 0), Cell("bc", 1)),
+        ]);
+
+        let matrix = complex
+            .filter_boundary(&Filter::from_ordering(
+                &complex,
+                [
+                    Cell("a", 0),
+                    Cell("c", 0),
+                    Cell("ac", 1),
+                    Cell("b", 0),
+                    Cell("bc", 1),
+                    Cell("ab", 1),
+                ],
+            ))
+            .boundary[0]
+            .clone();
+
+        assert_eq!(matrix, complex.boundary[0]);
+
+        println!("{:?}", matrix);
+        todo!()
+    }
 }

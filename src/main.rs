@@ -106,6 +106,7 @@ however, a bug inside it prevents using type aliases for other types
 pub mod matrix;
 pub mod lefschetz_complex;
 pub mod poset;
+pub mod permutations;
 
 pub const fn main(){}
 
