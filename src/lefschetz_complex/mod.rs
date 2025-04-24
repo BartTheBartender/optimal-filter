@@ -2,15 +2,16 @@ pub mod cell;
 pub mod filter;
 
 use crate::{
+    // poset::Poset,
+    lefschetz_complex::cell::Cell,
     matrix::{
         Matrix,
         ring::{Ring, Z2},
     },
-    poset::Poset,
+    permutations::Permutations,
 };
 
-use cell::Cell;
-use filter::Filter;
+use itertools::{self, Itertools, iproduct};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -126,6 +127,7 @@ impl<
         }
     }
 
+    /*
     pub fn filters<'a>(&'a self) -> impl Iterator<Item = Filter<'a, T, M>> {
         let not_added_cells = self.indices.values().copied().collect::<BTreeSet<_>>();
 
@@ -296,13 +298,38 @@ impl<
             })
             .collect::<Vec<_>>()
     }
+    */
 
-    // /// Returns all the possible depth posets. For now computes them using all possible filters.
-    // pub fn all_depth_poset_idx(
-    //     &self,
-    // ) -> impl Iterator<Item = Vec<Poset<(Cell<usize>, Cell<usize>)>>> {
-    //     self.filters().map(|filter|
-    // }
+    pub fn all_depth_posets_idx(&self) {
+        // ) -> impl Iterator<Item = Vec<Poset<(Cell<usize>, Cell<usize>)>>> {
+
+        let all_permutations = self
+            .dim_count
+            .iter()
+            .cloned()
+            .map(|dim| Permutations::new(dim).collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+
+        let all_permutation_pairs = all_permutations
+            .iter()
+            .zip(all_permutations.iter().skip(1))
+            .map(|(row_perms, col_perms)| iproduct!(row_perms, col_perms));
+
+        assert_eq!(
+            self.boundary.len(),
+            all_permutation_pairs.len(),
+            "We use permutation pairs to filter boundary matrices"
+        );
+
+        self.boundary
+            .iter()
+            .zip(all_permutation_pairs)
+            .map(|(matrix, perm_pairs)| {
+                perm_pairs
+                    .map(|(row_perm, col_perm)| matrix.permute(row_perm, col_perm))
+                    .map(|filtered_matrix: M| todo!())
+            });
+    }
 }
 
 impl<
@@ -373,7 +400,7 @@ mod test {
 
     #[test]
     #[ignore]
-    fn filter_boundary() {
+    fn all_depth_posets() {
         let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
             (Cell("a", 0), Cell("ab", 1)),
             (Cell("b", 0), Cell("ab", 1)),
@@ -383,24 +410,10 @@ mod test {
             (Cell("c", 0), Cell("bc", 1)),
         ]);
 
-        let matrix = complex
-            .filter_boundary(&Filter::from_ordering(
-                &complex,
-                [
-                    Cell("a", 0),
-                    Cell("c", 0),
-                    Cell("ac", 1),
-                    Cell("b", 0),
-                    Cell("bc", 1),
-                    Cell("ab", 1),
-                ],
-            ))
-            .boundary[0]
-            .clone();
+        complex.all_depth_posets_idx();
 
-        assert_eq!(matrix, complex.boundary[0]);
+        println!("DONE");
 
-        println!("{:?}", matrix);
         todo!()
     }
 }

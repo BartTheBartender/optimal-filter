@@ -1,6 +1,9 @@
 pub mod ring;
+use crate::{
+    matrix::ring::{Ring, Z2},
+    poset::Poset,
+};
 use itertools::Itertools;
-use ring::{Ring, Z2};
 use std::{collections::BTreeSet, fmt};
 
 pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
@@ -27,16 +30,22 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
 
     fn zero(nof_rows: usize, nof_cols: usize) -> Self;
 
-    fn from_rows_arr<const NOF_ROWS: usize, const ROW_LEN: usize>(
-        rows: [[R; ROW_LEN]; NOF_ROWS],
+    fn from_rows_arr<const NOF_ROWS: usize, const ROW_LEN: usize, T: Into<R>>(
+        rows: [[T; ROW_LEN]; NOF_ROWS],
     ) -> Self {
-        Self::from_rows(rows.into_iter().map(|row| row.into_iter()))
+        Self::from_rows(
+            rows.into_iter()
+                .map(|row| row.into_iter().map(|t| t.into())),
+        )
     }
 
-    fn from_cols_arr<const NOF_COLS: usize, const COL_LEN: usize>(
-        cols: [[R; COL_LEN]; NOF_COLS],
+    fn from_cols_arr<const NOF_COLS: usize, const COL_LEN: usize, T: Into<R>>(
+        cols: [[T; COL_LEN]; NOF_COLS],
     ) -> Self {
-        Self::from_cols(cols.into_iter().map(|col| col.into_iter()))
+        Self::from_cols(
+            cols.into_iter()
+                .map(|col| col.into_iter().map(|t| t.into())),
+        )
     }
 
     fn row_len(&self) -> usize {
@@ -159,11 +168,13 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
                 })
                 .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == R::ONE)
         } {
+            println!("s: {s}, t: {t}");
             while let Some(y) = {
                 (t + 1..self.nof_cols()).find(|y| {
                     col_mask[*y] && *self.get(s, *y).expect("this is fine in inner while") == R::ONE
                 })
             } {
+                println!(" y: {y}");
                 self.add_col_to_col(t, y);
                 b.insert((t, y));
             }
@@ -173,7 +184,7 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
             col_mask[t] = false;
         }
 
-        (b, bd_pairs)
+        (bd_pairs, b)
     }
 
     /// Algorithm from the paper on depth posets
@@ -193,14 +204,15 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
                         .filter(|s| row_mask[*s])
                         .map(move |s| (s, t))
                 })
-                //.inspect(|(s, t)| println!("s:{s}, t:{t}"))
                 .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == R::ONE)
         } {
+            println!("s: {s}, t: {t}");
             while let Some(x) = {
                 (0..s).rev().find(|x| {
                     row_mask[*x] && *self.get(*x, t).expect("this is fine in inner while") == R::ONE
                 })
             } {
+                println!(" x: {x}");
                 self.add_row_to_row(s, x);
                 b.insert((s, x));
             }
@@ -211,6 +223,37 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
         }
 
         (bd_pairs, b)
+    }
+
+    ///Returns the depth poset with nodes being just pairs of indices, since we do not know their
+    ///dimensions.
+    fn depth_poset(self) -> Poset<(usize, usize)> {
+        let (bd_pairs_1, b_1) = self.clone().algorithm_1();
+
+        let (bd_pairs_2, b_2) = self.algorithm_2();
+
+        debug_assert_eq!(
+            bd_pairs_1, bd_pairs_2,
+            "The sets of bd_pairs should be equal."
+        );
+
+        println!("B1: {:?}", b_1);
+        println!("B2: {:?}", b_2);
+
+        bd_pairs_1
+            .into_iter()
+            .flat_map(|x| bd_pairs_2.iter().cloned().map(move |y| (x, y)))
+            .inspect(|(x, y)| {
+                println!(
+                    "x: {:?}, y: {:?}, b_1: {}, b_2: {}",
+                    x,
+                    y,
+                    b_1.contains(&(x.1, y.1)),
+                    b_2.contains(&(x.0, y.0))
+                );
+            })
+            .filter(|(x, y)| b_1.contains(&(x.1, y.1)) || b_2.contains(&(x.0, y.0)))
+            .collect::<Poset<_>>()
     }
 }
 
@@ -330,169 +373,6 @@ impl<R: Ring + Copy + fmt::Debug> Matrix<R> for Vec2d<R> {
         }
     }
 }
-//
-//
-
-// let row_len = self.nof_cols;
-
-// self.buffer
-//     .into_iter()
-//     .chunks(row_len)
-//     .into_iter()
-//     .map(|chunk| chunk.collect::<Vec<_>>().into_iter())
-//     .collect::<Vec<_>>()
-//     .into_iter()
-
-//
-// fn into_cols(self) -> impl ExactSizeIterator<Item = impl ExactSizeIterator<Item = R>> {
-//     (0..self
-// }
-//
-//
-// fn from_rows_arr<const NOF_ROWS: usize, const ROW_LEN: usize>(
-//     rows: [[R; ROW_LEN]; NOF_ROWS],
-// ) -> Self {
-//     Self::from_rows(rows.into_iter().map(|row| row.into_iter()))
-// }
-//
-// fn from_cols_arr<const NOF_COLS: usize, const COL_LEN: usize>(
-//     cols: [[R; COL_LEN]; NOF_COLS],
-// ) -> Self {
-//     Self::from_cols(cols.into_iter().map(|col| col.into_iter()))
-// }
-//
-// fn row_len(&self) -> usize {
-//     self.nof_cols()
-// }
-//
-// fn col_len(&self) -> usize {
-//     self.nof_rows()
-// }
-//
-// fn get(&self, i: usize, j: usize) -> Option<&R> {
-//     (i < self.nof_rows() && j < self.nof_cols()).then(|| unsafe { self.get_unchecked(i, j) })
-// }
-//
-// fn get_mut(&mut self, i: usize, j: usize) -> Option<&mut R> {
-//     (i < self.nof_rows() && j < self.nof_cols())
-//         .then(|| unsafe { self.get_unchecked_mut(i, j) })
-// }
-//
-// fn get_row<'a>(&'a self, i: usize) -> Option<impl Iterator<Item = &'a R>>
-// where
-//     R: 'a,
-// {
-//     (i < self.nof_rows())
-//         .then(|| (0..self.row_len()).map(move |j| unsafe { self.get_unchecked(i, j) }))
-// }
-//
-// fn get_col<'a>(&'a self, j: usize) -> Option<impl Iterator<Item = &'a R>>
-// where
-//     R: 'a,
-// {
-//     (j < self.nof_cols())
-//         .then(|| (0..self.col_len()).map(move |i| unsafe { self.get_unchecked(i, j) }))
-// }
-//
-// fn add_col_to_col(&mut self, src_col: usize, tgt_col: usize) -> &mut Self {
-//     std::debug_assert!(src_col != tgt_col, "Adding collumn to itself");
-//     std::debug_assert!(src_col < self.nof_cols(), "src_col out of bounds");
-//     std::debug_assert!(tgt_col < self.nof_cols(), "tgt_col out of bounds");
-//
-//     for i in 0..self.nof_rows() {
-//         let new_value: R = *unsafe { self.get_unchecked(i, src_col) }
-//             + *unsafe { self.get_unchecked(i, tgt_col) };
-//
-//         *unsafe { self.get_unchecked_mut(i, tgt_col) } = new_value;
-//     }
-//
-//     self
-// }
-//
-// fn add_row_to_row(&mut self, src_row: usize, tgt_row: usize) -> &mut Self {
-//     std::debug_assert!(src_row != tgt_row, "Adding rowlumn to itself");
-//     std::debug_assert!(src_row < self.nof_rows(), "src_row out of bounds");
-//     std::debug_assert!(tgt_row < self.nof_rows(), "tgt_row out of bounds");
-//
-//     for j in 0..self.nof_cols() {
-//         let new_value: R = *unsafe { self.get_unchecked(src_row, j) }
-//             + *unsafe { self.get_unchecked(tgt_row, j) };
-//
-//         *unsafe { self.get_unchecked_mut(tgt_row, j) } = new_value;
-//     }
-//
-//     self
-// }
-
-// fn algorithm_1(mut self) -> (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize)>) {
-//     let mut row_mask = std::vec![true; self.nof_rows()];
-//     let mut col_mask = std::vec![true; self.nof_cols()];
-//     let mut b = BTreeSet::new();
-//     let mut bd_pairs = BTreeSet::new();
-//
-//     while let Some((s, t)) = {
-//         (0..self.nof_rows())
-//             .rev()
-//             .filter(|s| row_mask[*s])
-//             .flat_map(|s| {
-//                 (0..self.nof_cols())
-//                     .filter(|t| col_mask[*t])
-//                     .map(move |t| (s, t))
-//             })
-//             .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == <R as Ring>::ONE)
-//     } {
-//         while let Some(y) = {
-//             (t + 1..self.nof_cols()).find(|y| {
-//                 col_mask[*y] && *self.get(s, *y).expect("this is fine in inner while") == <R as Ring>::ONE
-//             })
-//         } {
-//             self.add_col_to_col(t, y);
-//             b.insert((t, y));
-//         }
-//
-//         bd_pairs.insert((s, t));
-//         row_mask[s] = false;
-//         col_mask[t] = false;
-//     }
-//
-//     (b, bd_pairs)
-// }
-//
-// fn algorithm_2(mut self) -> (BTreeSet<(usize, usize)>, BTreeSet<(usize, usize)>) {
-//     let mut row_mask = std::vec![true; self.nof_rows()];
-//     let mut col_mask = std::vec![true; self.nof_cols()];
-//     let mut b = BTreeSet::new();
-//     let mut bd_pairs = BTreeSet::new();
-//
-//     while let Some((s, t)) = {
-//         (0..self.nof_cols())
-//             .filter(|t| col_mask[*t])
-//             .flat_map(|t| {
-//                 (0..self.nof_rows())
-//                     .rev()
-//                     .filter(|s| row_mask[*s])
-//                     .map(move |s| (s, t))
-//             })
-//             //.inspect(|(s, t)| println!("s:{s}, t:{t}"))
-//             .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == <R as Ring>::ONE)
-//     } {
-//         while let Some(x) = {
-//             (0..s).rev().find(|x| {
-//                 row_mask[*x] && *self.get(*x, t).expect("this is fine in inner while") == <R as Ring>::ONE
-//             })
-//         } {
-//             self.add_row_to_row(s, x);
-//             b.insert((s, x));
-//         }
-//
-//         bd_pairs.insert((s, t));
-//         row_mask[s] = false;
-//         col_mask[t] = false;
-//     }
-//
-//     (bd_pairs, b)
-// }
-// }
 
 impl fmt::Display for Vec2d<Z2> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -523,7 +403,7 @@ mod test {
     #[test]
     fn from_rows() {
         assert_eq!(
-            Vec2d::from_rows_arr([[Z2::ONE, Z2::ONE], [Z2::ZERO, Z2::ZERO],]).buffer,
+            Vec2d::<Z2>::from_rows_arr([[1, 1], [0, 0],]).buffer,
             vec![Z2::ONE, Z2::ONE, Z2::ZERO, Z2::ZERO]
         );
     }
@@ -531,12 +411,7 @@ mod test {
     #[test]
     fn from_cols_arr() {
         assert_eq!(
-            Vec2d::from_cols_arr([
-                [Z2::ONE, Z2::ONE, Z2::ZERO],
-                [Z2::ONE, Z2::ZERO, Z2::ONE],
-                [Z2::ZERO, Z2::ONE, Z2::ONE]
-            ])
-            .buffer,
+            Vec2d::<Z2>::from_cols_arr([[1, 1, 0], [1, 0, 1], [0, 1, 1]]).buffer,
             vec![
                 Z2::ONE,
                 Z2::ONE,
@@ -553,11 +428,7 @@ mod test {
 
     #[test]
     fn get() {
-        let matrix = Vec2d::from_rows_arr([
-            [Z2::ONE, Z2::ZERO],
-            [Z2::ONE, Z2::ZERO],
-            [Z2::ZERO, Z2::ONE],
-        ]);
+        let matrix = Vec2d::<Z2>::from_rows_arr([[1, 0], [1, 0], [0, 1]]);
 
         assert_eq!(
             *matrix.get(0, 1).expect("This is in proper bounds."),
@@ -576,11 +447,7 @@ mod test {
 
     #[test]
     fn get_col_row() {
-        let matrix = Vec2d::from_rows_arr([
-            [Z2::ONE, Z2::ZERO],
-            [Z2::ONE, Z2::ZERO],
-            [Z2::ZERO, Z2::ONE],
-        ]);
+        let matrix = Vec2d::<Z2>::from_rows_arr([[1, 0], [1, 0], [0, 1]]);
 
         assert_eq!(
             matrix
@@ -601,96 +468,56 @@ mod test {
     }
 
     #[test]
-    fn algorithm_1() {
-        let matrix = Vec2d::from_rows_arr([
-            [
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ZERO,
-            ],
-            [
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-            ],
-            [
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-            ],
-        ]);
-        let (b, bd_pairs) = matrix.algorithm_1();
+    fn permute() {
+        let matrix =
+            Vec2d::<Z2>::from_rows_arr([[1, 1, 1, 1], [1, 1, 0, 0], [1, 1, 1, 0], [0, 0, 1, 1]]);
 
-        assert_eq!(bd_pairs, BTreeSet::from([(1, 0), (2, 2)]));
+        assert_eq!(
+            matrix.permute(&vec![0, 1, 2, 3], &vec![3, 1, 2, 0]),
+            Vec2d::<Z2>::from_rows_arr([[0, 0, 1, 1], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1],])
+        );
+    }
+
+    fn circle_from_the_paper() -> Vec2d<Z2> {
+        Vec2d::from_rows_arr([
+            [0, 0, 0, 0, 0, 0, 1, 1],
+            [0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 1, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 1],
+            [0, 0, 1, 1, 0, 0, 0, 0],
+            [0, 1, 0, 0, 1, 0, 0, 0],
+            [0, 0, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0],
+        ])
+    }
+
+    #[test]
+    fn algorithm_1() {
+        let (bd_pairs, b) = circle_from_the_paper().algorithm_1();
+
+        assert_eq!(
+            bd_pairs,
+            BTreeSet::from([(7, 5), (6, 3), (5, 1), (4, 2), (3, 0), (2, 4), (1, 6)])
+        );
+
         assert_eq!(
             b,
-            BTreeSet::from([
-                (0, 1),
-                (0, 5),
-                (0, 6),
-                (0, 7),
-                (2, 3),
-                (2, 4),
-                (2, 5),
-                (2, 6),
-                (2, 7)
-            ])
+            BTreeSet::from([(5, 6), (3, 4), (1, 4), (2, 4), (0, 7), (4, 7), (6, 7)])
         );
     }
 
     #[test]
     fn algorithm_2() {
-        let matrix = Vec2d::from_rows_arr([
-            [
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ZERO,
-            ],
-            [
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-            ],
-            [
-                Z2::ZERO,
-                Z2::ZERO,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-                Z2::ONE,
-            ],
-        ]);
+        let (bd_pairs, b) = circle_from_the_paper().algorithm_2();
 
-        let (bd_pairs, b) = matrix.algorithm_2();
+        assert_eq!(
+            bd_pairs,
+            BTreeSet::from([(7, 5), (6, 3), (5, 1), (4, 2), (3, 0), (2, 4), (1, 6)])
+        );
 
-        assert_eq!(bd_pairs, BTreeSet::from([(1, 0), (2, 2)]));
-        assert_eq!(b, BTreeSet::from([(1, 0), (2, 0)]));
+        assert_eq!(
+            b,
+            BTreeSet::from([(3, 2), (5, 2), (4, 1), (6, 1), (2, 1), (7, 1), (1, 0)])
+        );
     }
 }

@@ -18,6 +18,7 @@ however, a bug inside it prevents using type aliases for other types
 #![feature(concat_idents)]
 #![feature(associated_type_defaults)]
 #![feature(allocator_api)]
+#![feature(map_try_insert)]
 // visual separator
 #![allow(incomplete_features, reason = "we need nightly features")]
 #![allow(dead_code, reason = "to be removed later")] // REMOVE THIS LATER
@@ -104,7 +105,7 @@ however, a bug inside it prevents using type aliases for other types
 /* clippy end */
 
 pub mod matrix;
-pub mod lefschetz_complex;
+// pub mod lefschetz_complex;
 pub mod poset;
 pub mod permutations;
 

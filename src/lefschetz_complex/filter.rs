@@ -66,27 +66,27 @@ impl<'a, T: PartialEq + Eq + Copy + Clone + PartialOrd + Ord + fmt::Debug, M: Ma
     }
 }
 
-#[cfg(test)]
-mod test {
-    use super::*;
-    use crate::matrix::Vec2d;
-    #[test]
-    #[ignore]
-    fn triangle() {
-        let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
-            (Cell("a", 0), Cell("ab", 1)),
-            (Cell("b", 0), Cell("ab", 1)),
-            (Cell("a", 0), Cell("ac", 1)),
-            (Cell("c", 0), Cell("ac", 1)),
-            (Cell("b", 0), Cell("bc", 1)),
-            (Cell("c", 0), Cell("bc", 1)),
-        ]);
-
-        for filter in complex.filters() {
-            println!("{:?}", filter);
-            complex.filter_boundary(&filter);
-        }
-
-        todo!()
-    }
-}
+// #[cfg(test)]
+// mod test {
+//     use super::*;
+//     use crate::matrix::Vec2d;
+//     #[test]
+//     #[ignore]
+//     fn triangle() {
+//         let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
+//             (Cell("a", 0), Cell("ab", 1)),
+//             (Cell("b", 0), Cell("ab", 1)),
+//             (Cell("a", 0), Cell("ac", 1)),
+//             (Cell("c", 0), Cell("ac", 1)),
+//             (Cell("b", 0), Cell("bc", 1)),
+//             (Cell("c", 0), Cell("bc", 1)),
+//         ]);
+//
+//         for filter in complex.filters() {
+//             println!("{:?}", filter);
+//             complex.filter_boundary(&filter);
+//         }
+//
+//         todo!()
+//     }
+// }

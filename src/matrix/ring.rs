@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Add, BitXor};
 
-pub trait Ring: Add<Output = Self> + Sized + Clone + Copy + PartialEq + Eq {
+pub trait Ring: Add<Output = Self> + Sized + Clone + Copy + PartialEq + Eq + From<i32> {
     const ZERO: Self;
     const ONE: Self;
 }
@@ -29,12 +29,18 @@ impl Ring for Z2 {
     const ONE: Self = Self(true);
 }
 
+impl From<i32> for Z2 {
+    fn from(value: i32) -> Self {
+        Self((value & 1) == 1)
+    }
+}
+
 impl fmt::Debug for Z2 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0 {
             write!(f, "1")
         } else {
-            write!(f, "0")
+            write!(f, " ")
         }
     }
 }
