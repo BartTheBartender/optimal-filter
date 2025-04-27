@@ -1,0 +1,52 @@
+#!/bin/bash
+
+set -e
+
+cargo build --release
+
+read -p "Enter the name of the output file (it will be .pdf format, do not specify it): " OUTPUT_FILE
+echo "You chose: $OUTPUT_FILE"
+
+PROJECT_DIR="$HOME/Documents/projekty_profesor/mazur-manuel/optimal-filters"
+
+echo "Changing the directory to $PROJECT_DIR"
+cd "$PROJECT_DIR"
+
+if [ ! -d "$PROJECT_DIR/results" ]; then
+    mkdir "$PROJECT_DIR/results"
+    echo "Directory '$PROJECT_DIR/results' created."
+fi
+
+TMP_DIR="$PROJECT_DIR/results/tmp"
+if [ ! -d "$TMP_DIR" ]; then
+    mkdir "$TMP_DIR"
+    echo "Directory '$TMP_DIR' created."
+fi
+
+if [ ! -d "$TMP_DIR/dot" ]; then
+    mkdir "$TMP_DIR/dot"
+    echo "Directory '$TMP_DIR/dot' created."
+fi
+
+if [ ! -d "$TMP_DIR/pdf" ]; then
+    mkdir "$TMP_DIR/pdf"
+    echo "Directory '$TMP_DIR/pdf' created."
+fi
+
+echo "Running rust program..."
+cargo run --release
+
+for FILE in "$TMP_DIR/dot"/*.dot; do
+  FILENAME=$(basename "$FILE" .dot)
+  echo "Processing $FILENAME"
+  dot -Tpdf "$FILE" -o "$TMP_DIR/pdf/$FILENAME.pdf" 
+done
+
+echo "Merging pdfs."
+pdfunite "$TMP_DIR/pdf/"*.pdf "$PROJECT_DIR/results/$OUTPUT_FILE.pdf"
+
+echo "Cleanup"
+rm -rf "$TMP_DIR"
+
+echo "Done."
+

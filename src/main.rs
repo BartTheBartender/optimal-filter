@@ -104,10 +104,49 @@ however, a bug inside it prevents using type aliases for other types
 )]
 /* clippy end */
 
+// use std::{env, fs::File, io::Write};
+
+// use lefschetz_complex::{LefschetzComplex, cell::Cell, examples};
+// use matrix::{Vec2d, ring::Z2};
+// use poset::display_depth_poset;
+
+pub mod lefschetz_complex;
 pub mod matrix;
-// pub mod lefschetz_complex;
-pub mod poset;
 pub mod permutations;
+pub mod poset;
+pub mod wrapper;
 
 pub const fn main(){}
 
+// pub fn main() -> Result<(), std::io::Error> {
+//     let cwd = env::current_dir()?;
+//
+//     // We assume that this directory exists
+//     let dot_dir = cwd.join("results/tmp/dot");
+//
+//     // // Create and open the file in the cwd
+//     //
+//     // // Write something to the file
+//     // file.write_all(b"Hello, world!")?;
+//     // let project_root = env!("CARGO_MANIFEST_DIR");
+//     // println!("Project root: {}", project_root);
+//     // let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
+//     //     (Cell("a", 0), Cell("ab", 1)),
+//     //     (Cell("b", 0), Cell("ab", 1)),
+//     //     (Cell("a", 0), Cell("ac", 1)),
+//     //     (Cell("c", 0), Cell("ac", 1)),
+//     //     (Cell("b", 0), Cell("bc", 1)),
+//     //     (Cell("c", 0), Cell("bc", 1)),
+//     // ]);
+//     let complex = examples::glued_polygon();
+//
+//     for (count, depth_poset) in complex.all_depth_posets().enumerate() {
+//         // let mut file = File::create(cwd.join(format!("dupa.dot")))?;
+//         let mut file = File::create(dot_dir.join(format!("poset-{count}.dot")))?;
+//         file.write_all(display_depth_poset(&depth_poset).as_bytes())?;
+//         print!("Processed {count}\r");
+//     }
+//     println!();
+//
+//     Ok(())
+// }

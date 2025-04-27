@@ -118,12 +118,13 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
         self
     }
 
-    // pub fn permute_rows(self, row_perm: &Vec<usize>) -> Self {}
-    // pub fn permute_cols(self, row_perm: &Vec<usize>) -> Self {}
-    //
-    fn permute(&self, row_perm: &Vec<usize>, col_perm: &Vec<usize>) -> Self {
+    fn permute(&self, row_perm: &Vec<usize>, col_perm: &Vec<usize>) -> Self
+    where
+        Self: std::fmt::Debug,
+    {
+        // println!("ATTEMPT TO PERMUTE MATRIX: {:?}\n row_perm: {:?}, col_perm: {:?}", self, row_perm, col_perm);
         debug_assert_eq!(
-            self.nof_cols(),
+            self.nof_rows(),
             row_perm.len(),
             "This is not a proper row permutation"
         );
@@ -137,12 +138,12 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
             .into_rows()
             .map(|row| {
                 row.enumerate()
-                    .map(|(idx, coeff)| (row_perm[idx], coeff))
+                    .map(|(idx, coeff)| (col_perm[idx], coeff))
                     .sorted_unstable_by_key(|(idx, _)| *idx)
                     .map(|(_, coeff)| coeff)
             })
             .enumerate()
-            .map(|(idx, row)| (col_perm[idx], row))
+            .map(|(idx, row)| (row_perm[idx], row))
             .sorted_unstable_by_key(|(idx, _)| *idx)
             .map(|(_, row)| row);
 
@@ -168,13 +169,13 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
                 })
                 .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == R::ONE)
         } {
-            println!("s: {s}, t: {t}");
+            // println!("s: {s}, t: {t}");
             while let Some(y) = {
                 (t + 1..self.nof_cols()).find(|y| {
                     col_mask[*y] && *self.get(s, *y).expect("this is fine in inner while") == R::ONE
                 })
             } {
-                println!(" y: {y}");
+                // println!(" y: {y}");
                 self.add_col_to_col(t, y);
                 b.insert((t, y));
             }
@@ -206,13 +207,13 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
                 })
                 .find(|(s, t)| *self.get(*s, *t).expect("this is fine here.") == R::ONE)
         } {
-            println!("s: {s}, t: {t}");
+            // println!("s: {s}, t: {t}");
             while let Some(x) = {
                 (0..s).rev().find(|x| {
                     row_mask[*x] && *self.get(*x, t).expect("this is fine in inner while") == R::ONE
                 })
             } {
-                println!(" x: {x}");
+                // println!(" x: {x}");
                 self.add_row_to_row(s, x);
                 b.insert((s, x));
             }
@@ -237,23 +238,26 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
             "The sets of bd_pairs should be equal."
         );
 
-        println!("B1: {:?}", b_1);
-        println!("B2: {:?}", b_2);
+        // println!(" *B1: {:?}", b_1);
+        // println!(" *B2: {:?}", b_2);
 
-        bd_pairs_1
-            .into_iter()
-            .flat_map(|x| bd_pairs_2.iter().cloned().map(move |y| (x, y)))
-            .inspect(|(x, y)| {
-                println!(
-                    "x: {:?}, y: {:?}, b_1: {}, b_2: {}",
-                    x,
-                    y,
-                    b_1.contains(&(x.1, y.1)),
-                    b_2.contains(&(x.0, y.0))
-                );
-            })
-            .filter(|(x, y)| b_1.contains(&(x.1, y.1)) || b_2.contains(&(x.0, y.0)))
-            .collect::<Poset<_>>()
+        Poset::new(
+            bd_pairs_1,
+            bd_pairs_2
+                .iter()
+                .cloned()
+                .flat_map(|x| bd_pairs_2.iter().cloned().map(move |y| (x, y)))
+                // .inspect(|(x, y)| {
+                //     println!(
+                //         " * x: {:?}, y: {:?}, b_1: {}, b_2: {}",
+                //         x,
+                //         y,
+                //         b_1.contains(&(x.1, y.1)),
+                //         b_2.contains(&(x.0, y.0))
+                //     );
+                // })
+                .filter(|(x, y)| b_1.contains(&(x.1, y.1)) || b_2.contains(&(x.0, y.0))),
+        )
     }
 }
 
@@ -399,6 +403,7 @@ impl fmt::Debug for Vec2d<Z2> {
 #[cfg(test)]
 mod test {
     use super::{ring::Z2, *};
+    use std::collections::BTreeMap;
 
     #[test]
     fn from_rows() {
@@ -472,9 +477,11 @@ mod test {
         let matrix =
             Vec2d::<Z2>::from_rows_arr([[1, 1, 1, 1], [1, 1, 0, 0], [1, 1, 1, 0], [0, 0, 1, 1]]);
 
+        println!("{:?}", matrix);
+
         assert_eq!(
             matrix.permute(&vec![0, 1, 2, 3], &vec![3, 1, 2, 0]),
-            Vec2d::<Z2>::from_rows_arr([[0, 0, 1, 1], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1],])
+            Vec2d::<Z2>::from_rows_arr([[1, 1, 1, 1], [0, 1, 0, 1], [0, 1, 1, 1], [1, 0, 1, 0],])
         );
     }
 
@@ -518,6 +525,31 @@ mod test {
         assert_eq!(
             b,
             BTreeSet::from([(3, 2), (5, 2), (4, 1), (6, 1), (2, 1), (7, 1), (1, 0)])
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn depth_poset() {
+        let poset = circle_from_the_paper().depth_poset();
+        assert_eq!(
+            poset
+                .0
+                .into_iter()
+                .map(|(pred, mut succs)| {
+                    succs.sort();
+                    (pred, succs)
+                })
+                .collect::<BTreeMap<_, _>>(),
+            BTreeMap::from([
+                ((1, 6), vec![]),
+                ((2, 4), vec![(1, 6)]),
+                ((7, 5), vec![(1, 6)]),
+                ((3, 0), vec![(1, 6), (2, 4)]),
+                ((4, 2), vec![(1, 6), (2, 4)]),
+                ((5, 1), vec![(1, 6), (2, 4)]),
+                ((6, 3), vec![(1, 6), (2, 4)]),
+            ])
         );
     }
 }

@@ -23,10 +23,10 @@ impl<T: PartialEq + Eq + Copy + Clone + fmt::Debug + Sized + PartialOrd + Ord> f
     }
 }
 
-impl<T: PartialEq + Eq + Copy + Clone + fmt::Debug + Sized + PartialOrd + Ord> fmt::Display
+impl<T: PartialEq + Eq + Copy + Clone + fmt::Display + Sized + PartialOrd + Ord> fmt::Display
     for Cell<T>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{}", self.name())
     }
 }

@@ -1,10 +1,16 @@
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::{
+    cmp::Ordering,
+    collections::BTreeMap,
+    fmt::{self, Write},
+};
+
+use crate::lefschetz_complex::cell::Cell;
 
 // We store full a list of successors, a strict partial order.
 #[derive(Debug, Clone)]
-pub struct Poset<P: PartialEq + Eq + Ord>(BTreeMap<P, Vec<P>>);
+pub struct Poset<P: PartialEq + Eq + Ord>(pub(crate) BTreeMap<P, Vec<P>>);
 
-impl<P: PartialEq + Eq + Ord> Poset<P> {
+impl<P: PartialEq + Eq + Ord + Clone> Poset<P> {
     pub fn map<T: PartialEq + Eq + Ord + Clone, F: Fn(P) -> T>(self, f: F) -> Poset<T> {
         Poset::<T>(
             self.0
@@ -53,67 +59,177 @@ impl<P: PartialEq + Eq + Ord> Poset<P> {
             .expect("This should be added before")
             .push(succ)
     }
-}
 
-impl<P: PartialEq + Eq + Ord + Clone + std::fmt::Debug> FromIterator<(P, P)> for Poset<P> {
-    /// Performs also transitive closure, excluding reflexive relation
-    fn from_iter<T: IntoIterator<Item = (P, P)>>(iter: T) -> Self {
-        let mut poset = Self(
-            iter.into_iter()
-                .map(|(pred, succ)| (pred, vec![succ]))
-                .collect::<BTreeMap<_, _>>(),
-        );
-
-        for succ in poset
-            .0
-            .values()
-            .flat_map(|succ| succ.iter().cloned())
-            .collect::<Vec<P>>()
-            .into_iter()
-        {
-            poset.0.entry(succ).or_default();
-        }
-
-        println!("{:?}", poset);
-
-        let elements: Vec<P> = poset.elements().cloned().collect();
+    fn transitive_closure(&mut self) {
+        let elements: Vec<P> = self.elements().cloned().collect();
 
         while let Some((pred, succ)) = elements
             .iter()
             .flat_map(|x: &P| elements.iter().map(move |y: &P| (x, y)))
-            .inspect(|(x, y)| {
-                println!(
-                    "x: {:?}, y: {:?}, compare(x,y): {:?}",
-                    x,
-                    y,
-                    poset.compare(x, y)
-                );
-            })
+            // .inspect(|(x, y)| {
+            //     println!(
+            //         "x: {:?}, y: {:?}, compare(x,y): {:?}",
+            //         x,
+            //         y,
+            //         self.compare(x, y)
+            //     );
+            // })
             .find(|(x, y): &(&P, &P)| {
-                poset.compare(x, y).is_none()
+                self.compare(x, y).is_none()
                     && elements
                         .iter()
-                        .inspect(|z| {
-                            println!(
-                                " z: {:?}, compare(x,z): {:?}, compare(z,y): {:?}",
-                                z,
-                                poset.compare(x, z),
-                                poset.compare(z, y)
-                            )
-                        })
+                        // .inspect(|z| {
+                        //     println!(
+                        //         " z: {:?}, compare(x,z): {:?}, compare(z,y): {:?}",
+                        //         z,
+                        //         self.compare(x, z),
+                        //         self.compare(z, y)
+                        //     )
+                        // })
                         .any(|z: &P| {
-                            poset.compare(x, z) == Some(Ordering::Less)
-                                && poset.compare(z, y) == Some(Ordering::Less)
+                            self.compare(x, z) == Some(Ordering::Less)
+                                && self.compare(z, y) == Some(Ordering::Less)
                         })
             })
             .map(|(x, y)| (x.clone(), y.clone()))
         {
-            println!("APPENDING LESS(x,y), where x: {:?}, y: {:?}", pred, succ);
+            // println!("APPENDING LESS(x,y), where x: {:?}, y: {:?}", pred, succ);
+            self.set_less(&pred, succ);
+        }
+    }
+
+    pub fn new(
+        elements: impl IntoIterator<Item = P>,
+        relations: impl Iterator<Item = (P, P)>,
+    ) -> Self {
+        let mut poset = Self(
+            elements
+                .into_iter()
+                .map(|elem| (elem, Vec::new()))
+                .collect::<BTreeMap<_, _>>(),
+        );
+
+        for (pred, succ) in relations.into_iter() {
             poset.set_less(&pred, succ);
         }
 
+        poset.transitive_closure();
+
         poset
     }
+
+    pub fn depth(&self) -> usize {
+        fn dfs<P: PartialEq + Eq + Ord + Clone>(
+            node: &P,
+            graph: &BTreeMap<P, Vec<P>>,
+            memo: &mut BTreeMap<P, usize>,
+        ) -> usize {
+            if let Some(&length) = memo.get(node) {
+                return length;
+            }
+
+            let max_len = graph
+                .get(node)
+                .unwrap_or(&Vec::new())
+                .iter()
+                .map(|succ| dfs(succ, graph, memo))
+                .max()
+                .unwrap_or(0);
+
+            memo.insert(node.clone(), max_len + 1);
+            max_len + 1
+        }
+
+        let mut memo = BTreeMap::new();
+        self.0
+            .keys()
+            .map(|node| dfs(node, &self.0, &mut memo))
+            .max()
+            .unwrap_or(0)
+            - 1 // length = nodes - 1
+    }
+}
+
+///Graphviz format
+impl<P: PartialEq + Eq + Ord + Clone + fmt::Display> fmt::Display for Poset<P> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "digraph G {{\n  rankdir=BT;")?;
+
+        for (node, succs) in self.0.iter() {
+            for succ in succs.iter() {
+                writeln!(f, "  {}->{}", node, succ)?;
+            }
+        }
+
+        writeln!(f, "}}")
+    }
+}
+
+// pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display + fmt::Debug>(
+pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display>(
+    depth_poset: &Vec<Poset<(Cell<T>, Cell<T>)>>,
+) -> String {
+    // println!("{:?}", depth_poset);
+    let colors = [
+        "#6fa8dc", "#f6b26b", "#93c47d", "#8e7cc3", "#76a5af", "#c27ba0",
+    ];
+    assert!(depth_poset.len() <= colors.len(), "Not enough colors");
+    let mut buffer = String::new();
+
+    writeln!(
+        &mut buffer,
+        r#"digraph G {{
+    rankdir=BT;
+    node [shape=ellipse, style=filled, fontname="Arial"]"#
+    )
+    .unwrap();
+
+    for (dim, (poset, color)) in depth_poset.iter().zip(colors.iter()).enumerate() {
+        writeln!(
+            &mut buffer,
+            r#"
+    subgraph cluster_0 {{
+        label = "dimension {dim}, depth {}";
+        style = rounded;
+        subgraph {{
+            node [ fillcolor="{color}" ]
+            rankdir=BT;"#,
+        poset.depth())
+        .unwrap();
+
+        for (pred, succs) in poset.0.iter() {
+            if succs.is_empty() {
+                if poset
+                    .elements()
+                    .filter(|node| *node != pred)
+                    .all(|node| poset.compare(node, pred).is_none())
+                {
+                    writeln!(&mut buffer, "             \"{}, {}\";", pred.0, pred.1).unwrap();
+                }
+            } else {
+                for succ in succs.iter() {
+                    writeln!(
+                        &mut buffer,
+                        "               \"{}, {}\" -> \"{}, {}\";",
+                        pred.0, pred.1, succ.0, succ.1
+                    )
+                    .unwrap();
+                }
+            }
+        }
+
+        writeln!(
+            &mut buffer,
+            r#"
+        }}
+    }}"#
+        )
+        .unwrap();
+    }
+
+    writeln!(&mut buffer, "}}").unwrap();
+
+    buffer
 }
 
 #[cfg(test)]
@@ -122,8 +238,11 @@ mod test {
     use super::*;
 
     #[test]
-    fn from_pairs() {
-        let poset = Poset::<u32>::from_iter([(2, 3), (3, 4), (4, 5), (1, 4)]);
+    fn new() {
+        let poset = Poset::<u32>::new(
+            [1, 2, 3, 4, 5],
+            [(2, 3), (3, 4), (4, 5), (1, 4)].into_iter(),
+        );
 
         assert_eq!(poset.compare(&1, &1), Some(Ordering::Equal));
         assert_eq!(poset.compare(&1, &2), None);
@@ -154,5 +273,17 @@ mod test {
         assert_eq!(poset.compare(&5, &3), Some(Ordering::Greater));
         assert_eq!(poset.compare(&5, &4), Some(Ordering::Greater));
         assert_eq!(poset.compare(&5, &5), Some(Ordering::Equal));
+    }
+
+    #[test]
+    fn depth() {
+
+        let poset = Poset::<u32>::new(
+            [1, 2, 3, 4, 5],
+            [(2, 3), (3, 4), (4, 5), (1, 4)].into_iter(),
+        );
+
+        assert_eq!(poset.depth(), 3);
+
     }
 }

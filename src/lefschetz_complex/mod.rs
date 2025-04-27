@@ -1,14 +1,15 @@
 pub mod cell;
-pub mod filter;
+pub mod examples;
+// pub mod filter;
 
 use crate::{
-    // poset::Poset,
     lefschetz_complex::cell::Cell,
     matrix::{
-        Matrix,
-        ring::{Ring, Z2},
+        ring::{Ring, Z2}, Matrix
     },
     permutations::Permutations,
+    poset::Poset,
+    wrapper::{TrivialWrapper, Wrapper},
 };
 
 use itertools::{self, Itertools, iproduct};
@@ -32,6 +33,7 @@ impl<
     M: Matrix<Z2> + fmt::Debug,
 > LefschetzComplex<T, M>
 {
+    /// relations (s,t) where s is a facet of t
     pub fn from_face_relations<FaceRelations: IntoIterator<Item = (Cell<T>, Cell<T>)>>(
         face_relations: FaceRelations,
     ) -> Self {
@@ -69,11 +71,16 @@ impl<
             .collect::<Vec<_>>();
 
         for (s, t) in face_relations_vec.into_iter() {
+            print!("Setting face relations. s: {s:?}, t: {t:?}. ");
             let s_ = *indices.get(&s).expect("The cell exists.");
 
             let t_ = *indices.get(&t).expect("The cell exists.");
+            println!(
+                "Indices s_: {s_}, t_: {t_}. Shape of the boundary: matrix {:?}.",
+                boundary[s.dim()].shape()
+            );
             *boundary[s.dim()]
-                .get_mut(t_.name(), s_.name())
+                .get_mut(s_.name(), t_.name())
                 .expect("This is in proper bounds") = Z2::ONE;
         }
 
@@ -82,6 +89,13 @@ impl<
             indices,
             dim_count,
         }
+    }
+
+    fn reverse(&self) -> BTreeMap<Cell<usize>, Cell<T>> {
+        self.indices
+            .iter()
+            .map(|(k, v)| (*v, *k))
+            .collect::<BTreeMap<_, _>>()
     }
 
     pub const fn max_dim(&self) -> usize {
@@ -117,7 +131,7 @@ impl<
                 .get_row(cell.name())
                 .expect("This is well-defined.")
                 .enumerate()
-                .inspect(|(idx, coeff)| println!("IDX: {idx}, COEFF: {coeff}"))
+                // .inspect(|(idx, coeff)| println!("IDX: {idx}, COEFF: {coeff}"))
                 .filter(|(_, coeff)| (**coeff == Z2::ONE))
                 .map(move |(idx, _)| Cell(idx, dim + 1))
                 .collect::<Vec<_>>()
@@ -300,9 +314,9 @@ impl<
     }
     */
 
-    pub fn all_depth_posets_idx(&self) {
-        // ) -> impl Iterator<Item = Vec<Poset<(Cell<usize>, Cell<usize>)>>> {
-
+    pub fn all_depth_posets_idx<W: Wrapper<Poset<(usize, usize)>>>(
+        &self,
+    ) -> impl Iterator<Item = Vec<W>> {
         let all_permutations = self
             .dim_count
             .iter()
@@ -313,7 +327,13 @@ impl<
         let all_permutation_pairs = all_permutations
             .iter()
             .zip(all_permutations.iter().skip(1))
-            .map(|(row_perms, col_perms)| iproduct!(row_perms, col_perms));
+            .map(|(row_perms, col_perms)| {
+                iproduct!(
+                    row_perms.into_iter().enumerate(),
+                    col_perms.into_iter().enumerate()
+                )
+            });
+        println!("permutation pairs computed.");
 
         assert_eq!(
             self.boundary.len(),
@@ -321,14 +341,93 @@ impl<
             "We use permutation pairs to filter boundary matrices"
         );
 
-        self.boundary
+        // the depth poset in dimension d is determined just by the ordering of d and d+1 cells.
+        // those orderings are determined by their indices in all_permutation[d] and
+        // all_permutation[d+1]. we
+        // store this as a vec<btreemap<(usize, usize), poset<_>>> for later use.
+        let depth_posets_in_dimensions: Vec<BTreeMap<(usize, usize), W>> = self
+            .boundary
             .iter()
             .zip(all_permutation_pairs)
-            .map(|(matrix, perm_pairs)| {
-                perm_pairs
-                    .map(|(row_perm, col_perm)| matrix.permute(row_perm, col_perm))
-                    .map(|filtered_matrix: M| todo!())
-            });
+            .map(|(matrix, perm_pairs_indices)| {
+                perm_pairs_indices
+                    .map(|((row_perm_idx, row_perm), (col_perm_idx, col_perm))| {
+                        (
+                            (row_perm_idx, col_perm_idx),
+                            W::from_object(matrix.permute(row_perm, col_perm).depth_poset()),
+                        )
+                    })
+                    .collect::<BTreeMap<_, _>>()
+            })
+            .collect();
+        println!("depth posets in dimensions computed.");
+
+        // depth_posets_in_dimensions
+        //     .iter()
+        //     .flat_map(|dps| dps.values())
+        //     .for_each(|dp| println!("DP: {:?}", dp));
+
+        // every permutation in all_permutations has its dimension (dimension of the resp. cells)
+        // and index. thus every depth poset is determined by a multi_index [a1, a2, ... amax_dim]
+        // where all_permutations[i][a_i] is an ordering of i- cells yielding the current depth
+        // poset.
+        let all_multi_indices = all_permutations
+            .iter()
+            .map(|perms_fixed_dim| (0..perms_fixed_dim.len()))
+            .multi_cartesian_product();
+
+        println!("all multi indices computed.");
+
+        all_multi_indices.map(move |multi_index| {
+            depth_posets_in_dimensions
+                .iter()
+                .zip(
+                    multi_index
+                        .iter()
+                        .cloned()
+                        .zip(multi_index.iter().skip(1).cloned()),
+                )
+                .map(|(depth_poset_btreemap, depth_poset_idx)| {
+                    depth_poset_btreemap
+                        .get(&depth_poset_idx)
+                        .expect("This depth poset exists by construction!!!")
+                        .clone()
+                })
+                .collect::<Vec<_>>()
+        })
+    }
+
+    fn label_depth_posets(
+        &self,
+        all_depth_posets_idx: impl Iterator<Item = Vec<Poset<(usize, usize)>>>,
+    ) -> impl Iterator<Item = Vec<Poset<(Cell<T>, Cell<T>)>>> {
+        let reverse = self.reverse();
+        all_depth_posets_idx.map(move |depth_poset| {
+            depth_poset
+                .into_iter()
+                .enumerate()
+                .map(|(dim, poset)| {
+                    poset.map(|(idx1, idx2)| {
+                        (
+                            *reverse
+                                .get(&Cell(idx1, dim))
+                                .expect("This cell is in the complex"),
+                            *reverse
+                                .get(&Cell(idx2, dim.saturating_add(1)))
+                                .expect("This cell is in the complex"),
+                        )
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+    }
+
+    pub fn all_depth_posets(&self) -> impl Iterator<Item = Vec<Poset<(Cell<T>, Cell<T>)>>> {
+        self.label_depth_posets(self.all_depth_posets_idx::<TrivialWrapper<Poset<(usize, usize)>>>().map(|vec| {
+            vec.into_iter()
+                .map(|wrapper| wrapper.into_object())
+                .collect::<Vec<_>>()
+        }))
     }
 }
 
@@ -399,8 +498,7 @@ mod test {
     }
 
     #[test]
-    #[ignore]
-    fn all_depth_posets() {
+    fn all_depth_posets_idx() {
         let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
             (Cell("a", 0), Cell("ab", 1)),
             (Cell("b", 0), Cell("ab", 1)),
@@ -410,10 +508,6 @@ mod test {
             (Cell("c", 0), Cell("bc", 1)),
         ]);
 
-        complex.all_depth_posets_idx();
-
-        println!("DONE");
-
-        todo!()
+        assert_eq!(complex.all_depth_posets_idx::<TrivialWrapper<_>>().count(), 36);
     }
 }
