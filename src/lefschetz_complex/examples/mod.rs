@@ -1,74 +1,151 @@
-use crate::{
-    lefschetz_complex::{LefschetzComplex, cell::Cell},
-    matrix::{Vec2d, ring::Z2},
-};
+use super::{LefschetzComplex, cell::Cell};
+use crate::matrix::{Vec2d, ring::Z2};
 
-pub type Complex = LefschetzComplex<&'static str, Vec2d<Z2>>;
+pub type Complex = LefschetzComplex<String, Vec2d<Z2>>;
 
-/// We take a regular polygon with `N > 2` and glue its edges with the same orientation. In order
-/// to preserve regularity, we need to break the outer edge in half.
-pub fn glued_polygon() -> Complex
-where
-    // [(); 4 * N + 5]:,
-{
-    // assert!(N > 2, "This is not a polygon");
-    const N: usize = 3;
-    let face_relations: [(Cell<&'static str>, Cell<&'static str>); 8 * N + 4] = {
-        let mut buffer = [(Cell("Dummy", 0), (Cell("Dummy", 0))); 8 * N + 4];
+pub fn rp2() -> Complex {
 
-        buffer[0] = (Cell("a", 0), Cell("ab", 1));
-        buffer[1] = (Cell("b", 0), Cell("ab", 1));
-        buffer[2] = (Cell("a", 0), Cell("ba", 1));
-        buffer[3] = (Cell("b", 0), Cell("ba", 1));
+    let face_relations = [
+        (Cell(String::from("v"), 0), Cell(String::from("a"), 1)),
+        (Cell(String::from("w"), 0), Cell(String::from("a"), 1)),
+        (Cell(String::from("v"), 0), Cell(String::from("b"), 1)),
+        (Cell(String::from("w"), 0), Cell(String::from("b"), 1)),
+        // 2*v = 0 in c
+        (Cell(String::from("a"), 1), Cell(String::from("U"), 2)),
+        (Cell(String::from("b"), 1), Cell(String::from("U"), 2)),
+        (Cell(String::from("c"), 1), Cell(String::from("U"), 2)),
+        (Cell(String::from("a"), 1), Cell(String::from("L"), 2)),
+        (Cell(String::from("b"), 1), Cell(String::from("L"), 2)),
+        (Cell(String::from("c"), 1), Cell(String::from("L"), 2)),
+    ];
 
-        buffer[4] = (Cell("o", 0), Cell("e0", 1));
-        buffer[5] = (Cell("a", 0), Cell("e0", 1));
-        buffer[6] = (Cell("o", 0), Cell("e1", 1));
-        buffer[7] = (Cell("b", 0), Cell("e1", 1));
+    Complex::from_face_relations(face_relations)
 
-        buffer[8] = (Cell("o", 0), Cell("e2", 1));
-        buffer[9] = (Cell("a", 0), Cell("e2", 1));
-        buffer[10] = (Cell("o", 0), Cell("e3", 1));
-        buffer[11] = (Cell("b", 0), Cell("e3", 1));
+}
 
-        buffer[12] = (Cell("o", 0), Cell("e4", 1));
-        buffer[13] = (Cell("a", 0), Cell("e4", 1));
-        buffer[14] = (Cell("o", 0), Cell("e5", 1));
-        buffer[15] = (Cell("b", 0), Cell("e5", 1));
+pub fn triangle() -> Complex {
+    let face_relations = [
+        (Cell(String::from("a"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("a"), 0), Cell(String::from("ac"), 1)),
+        (Cell(String::from("c"), 0), Cell(String::from("ac"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("bc"), 1)),
+        (Cell(String::from("c"), 0), Cell(String::from("bc"), 1)),
+        (Cell(String::from("ab"), 1), Cell(String::from("abc"), 2)),
+        (Cell(String::from("ac"), 1), Cell(String::from("abc"), 2)),
+        (Cell(String::from("bc"), 1), Cell(String::from("abc"), 2)),
+    ];
 
-        buffer[16] = (Cell("e0", 1), Cell("t0", 2));
-        buffer[17] = (Cell("e1", 1), Cell("t0", 2));
+    Complex::from_face_relations(face_relations)
+}
 
-        buffer[18] = (Cell("e1", 1), Cell("t1", 2));
-        buffer[19] = (Cell("e2", 1), Cell("t1", 2));
+pub fn glued_polygon(n: usize) -> Complex {
+    let face_relations = [
+        (Cell(String::from("a"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("a"), 0), Cell(String::from("ba"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("ba"), 1)),
+    ]
+    .into_iter()
+    .chain(
+        (0..n)
+            .map(|k| k * 2)
+            .map(|k| (Cell(String::from("a"), 0), Cell(format!("e{k}"), 1))),
+    )
+    .chain(
+        (0..n)
+            .map(|k| k * 2 + 1)
+            .map(|k| (Cell(String::from("b"), 0), Cell(format!("e{k}"), 1))),
+    )
+    .chain((0..2 * n).map(|k| (Cell(String::from("c"), 0), Cell(format!("e{k}"), 1))))
+    .chain((0..2 * n).map(|k| (Cell(format!("e{k}"), 1), Cell(format!("t{k}"), 2))))
+    .chain((0..2 * n).map(|k| {
+        (
+            Cell(format!("e{}", (k + 1) % (2 * n)), 1),
+            Cell(format!("t{k}"), 2),
+        )
+    }))
+    .collect::<Vec<_>>();
 
-        buffer[20] = (Cell("e2", 1), Cell("t2", 2));
-        buffer[21] = (Cell("e3", 1), Cell("t2", 2));
+    Complex::from_face_relations(face_relations)
+}
 
-        buffer[22] = (Cell("e3", 1), Cell("t3", 2));
-        buffer[23] = (Cell("e4", 1), Cell("t3", 2));
+// since we do not have memory
+pub fn generalized_dunce_hat_irregular(n: usize) -> Complex {
+    let mut face_relations: Vec<(Cell<String>, Cell<String>)> = Vec::new();
+    // vec![(Cell(String::from("a"), 0), Cell(String::from("aa"), 1))]; this is 2 % 2 = 0
 
-        buffer[24] = (Cell("e4", 1), Cell("t4", 2));
-        buffer[25] = (Cell("e5", 1), Cell("t4", 2));
+    // for each edge of the polygon
+    for i in 0..n {
+        // connect "inner edge" with "boundary" vertex
+        face_relations.push((Cell(String::from("a"), 0), Cell(format!("e{i}"), 1)));
 
-        buffer[26] = (Cell("e5", 1), Cell("t5", 2));
-        buffer[27] = (Cell("e0", 1), Cell("t5", 2));
+        //connect "inner edge" with the center
+        face_relations.push((Cell(String::from("c"), 0), Cell(format!("e{i}"), 1)));
 
-        buffer
-    };
+        //connect "inner edges" with respective triangles. take into account that en=e0
+        face_relations.push((Cell(format!("e{i}"), 1), Cell(format!("t{i}"), 2)));
+        face_relations.push((
+            Cell(format!("e{}", (i + 1) % n), 1),
+            Cell(format!("t{i}"), 2),
+        ));
 
-    for x in face_relations {
-        println!("{:?}", x);
+        //connect "outer edge" with the triangle
+        face_relations.push((Cell(String::from("aa"), 1), Cell(format!("t{i}"), 2)));
     }
 
     Complex::from_face_relations(face_relations)
 }
 
-#[cfg(test)]
-mod test {
+pub fn generalized_dunce_hat(n: usize) -> Complex {
+    // assert_eq!(n % 2, 1, "The number of edges of the polygon must be odd");
 
-    #[test]
-    fn glued_polygon() {
-        let _ = super::glued_polygon();
+    // the outer edges of the polygon
+    let mut face_relations: Vec<(Cell<String>, Cell<String>)> = vec![
+        (Cell(String::from("a"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("ab"), 1)),
+        (Cell(String::from("a"), 0), Cell(String::from("ba"), 1)),
+        (Cell(String::from("b"), 0), Cell(String::from("ba"), 1)),
+    ];
+
+    // for each edge of the polygon
+    for i in 0..n {
+        let i_left = 2 * i;
+        let i_right = 2 * i + 1;
+
+        // connect "inner edges" with "boundary" vertices
+        face_relations.push((Cell(String::from("a"), 0), Cell(format!("e{i_left}"), 1)));
+        face_relations.push((Cell(String::from("b"), 0), Cell(format!("e{i_right}"), 1)));
+
+        //connect "inner edges" with the center
+        face_relations.push((Cell(String::from("c"), 0), Cell(format!("e{i_left}"), 1)));
+        face_relations.push((Cell(String::from("c"), 0), Cell(format!("e{i_right}"), 1)));
+
+        //connect "inner edges" with respective triangles. take into account that en=e0, which can
+        //only happen for the right side
+        face_relations.push((Cell(format!("e{i_left}"), 1), Cell(format!("t{i_left}"), 2)));
+        face_relations.push((
+            Cell(format!("e{}", i_left + 1), 1),
+            Cell(format!("t{i_left}"), 2),
+        ));
+        face_relations.push((
+            Cell(format!("e{i_right}"), 1),
+            Cell(format!("t{i_right}"), 2),
+        ));
+        face_relations.push((
+            Cell(format!("e{}", (i_right + 1) % (2 * n)), 1),
+            Cell(format!("t{i_right}"), 2),
+        ));
+
+        // if i is even, we connect ab to t_left and ba to t_right, otherwise other way around
+        if i % 2 == 0 {
+            face_relations.push((Cell(String::from("ab"), 1), Cell(format!("t{i_left}"), 2)));
+            face_relations.push((Cell(String::from("ba"), 1), Cell(format!("t{i_right}"), 2)));
+        } else {
+            face_relations.push((Cell(String::from("ba"), 1), Cell(format!("t{i_left}"), 2)));
+            face_relations.push((Cell(String::from("ab"), 1), Cell(format!("t{i_right}"), 2)));
+        }
     }
+
+    Complex::from_face_relations(face_relations)
 }

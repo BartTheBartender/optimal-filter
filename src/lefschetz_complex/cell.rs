@@ -3,29 +3,25 @@ use std::{
     fmt,
 };
 
-#[derive(PartialEq, Eq, Copy, Clone, PartialOrd, Ord)]
-pub struct Cell<T: PartialEq + Eq + Copy + Clone + Sized + PartialOrd + Ord>(pub T, pub usize);
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord)]
+pub struct Cell<T: Clone + Sized + Ord>(pub T, pub usize);
 
-impl<T: PartialEq + Eq + Copy + Clone + Sized + PartialOrd + Ord> Cell<T> {
-    pub const fn name(&self) -> T {
-        self.0
+impl<T: Clone + Sized + Ord> Cell<T> {
+    pub const fn name(&self) -> &T {
+        &self.0
     }
     pub const fn dim(&self) -> usize {
         self.1
     }
 }
 
-impl<T: PartialEq + Eq + Copy + Clone + fmt::Debug + Sized + PartialOrd + Ord> fmt::Debug
-    for Cell<T>
-{
+impl<T: Clone + fmt::Display + Sized + Ord> fmt::Debug for Cell<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Cell({:?}, {})", self.0, self.1)
+        write!(f, "Cell({}, {})", self.0, self.1)
     }
 }
 
-impl<T: PartialEq + Eq + Copy + Clone + fmt::Display + Sized + PartialOrd + Ord> fmt::Display
-    for Cell<T>
-{
+impl<T: Clone + fmt::Display + Sized + Ord> fmt::Display for Cell<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }

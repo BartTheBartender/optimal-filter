@@ -19,6 +19,7 @@ however, a bug inside it prevents using type aliases for other types
 #![feature(associated_type_defaults)]
 #![feature(allocator_api)]
 #![feature(map_try_insert)]
+#![feature(integer_atomics)]
 // visual separator
 #![allow(incomplete_features, reason = "we need nightly features")]
 #![allow(dead_code, reason = "to be removed later")] // REMOVE THIS LATER
@@ -58,7 +59,7 @@ however, a bug inside it prevents using type aliases for other types
     clippy::map_err_ignore,
     clippy::missing_assert_message,
     clippy::multiple_inherent_impl,
-    clippy::multiple_unsafe_ops_per_block,
+    // clippy::multiple_unsafe_ops_per_block,
     clippy::mutex_atomic,
     //clippy::pattern_type_mismatch,
     clippy::rc_buffer,
@@ -94,7 +95,7 @@ however, a bug inside it prevents using type aliases for other types
 
     // style
     clippy::empty_structs_with_brackets,
-    clippy::impl_trait_in_params,
+    // clippy::impl_trait_in_params,
     clippy::rest_pat_in_fully_bound_structs,
     clippy::self_named_module_files,
     clippy::semicolon_inside_block,
@@ -104,11 +105,11 @@ however, a bug inside it prevents using type aliases for other types
 )]
 /* clippy end */
 
-// use std::{env, fs::File, io::Write};
+use std::{env, fs::File, io::Write};
 
-// use lefschetz_complex::{LefschetzComplex, cell::Cell, examples};
-// use matrix::{Vec2d, ring::Z2};
-// use poset::display_depth_poset;
+use lefschetz_complex::examples;
+// use matrix::Matrix;
+use poset::display_depth_poset;
 
 pub mod lefschetz_complex;
 pub mod matrix;
@@ -116,37 +117,33 @@ pub mod permutations;
 pub mod poset;
 pub mod wrapper;
 
-pub const fn main(){}
+// pub const fn main() {}
 
-// pub fn main() -> Result<(), std::io::Error> {
-//     let cwd = env::current_dir()?;
-//
-//     // We assume that this directory exists
-//     let dot_dir = cwd.join("results/tmp/dot");
-//
-//     // // Create and open the file in the cwd
-//     //
-//     // // Write something to the file
-//     // file.write_all(b"Hello, world!")?;
-//     // let project_root = env!("CARGO_MANIFEST_DIR");
-//     // println!("Project root: {}", project_root);
-//     // let complex = LefschetzComplex::<&'static str, Vec2d<Z2>>::from_face_relations([
-//     //     (Cell("a", 0), Cell("ab", 1)),
-//     //     (Cell("b", 0), Cell("ab", 1)),
-//     //     (Cell("a", 0), Cell("ac", 1)),
-//     //     (Cell("c", 0), Cell("ac", 1)),
-//     //     (Cell("b", 0), Cell("bc", 1)),
-//     //     (Cell("c", 0), Cell("bc", 1)),
-//     // ]);
-//     let complex = examples::glued_polygon();
-//
-//     for (count, depth_poset) in complex.all_depth_posets().enumerate() {
-//         // let mut file = File::create(cwd.join(format!("dupa.dot")))?;
-//         let mut file = File::create(dot_dir.join(format!("poset-{count}.dot")))?;
-//         file.write_all(display_depth_poset(&depth_poset).as_bytes())?;
-//         print!("Processed {count}\r");
-//     }
-//     println!();
-//
-//     Ok(())
-// }
+pub fn main() -> Result<(), std::io::Error> {
+    let name = "dunce-hat-4";
+    let cwd = env::current_dir()?;
+    // pub fn main() {
+    // let complex = examples::triangle();
+    // let complex = examples::glued_polygon(3);
+    let complex = examples::generalized_dunce_hat(4);
+    // let complex = examples::generalized_dunce_hat_irregular(4);
+    // let complex = examples::rp2();
+    println!("{:?}", complex);
+    // let depth_poset = complex
+    //     .boundary
+    //     .iter()
+    //     .enumerate()
+    //     .map(|(dim_birth, matrix)| {
+    //         complex.label_usize_poset(matrix.clone().depth_poset(), dim_birth)
+    //     })
+    // .collect::<Vec<_>>();
+    let (filter, depth_poset) = complex.depth_poset_min_depth();
+    println!("[ depth poset: {:?} ]", depth_poset);
+    //
+    // let mut file = File::create(cwd.join("results/tmp/triangle.dot"))?;
+    let mut file = File::create(cwd.join(format!("results/tmp/{name}.dot")))?;
+    file.write_all(display_depth_poset(&depth_poset, &filter).as_bytes())?;
+    println!("[ {name} done]");
+
+    Ok(())
+}

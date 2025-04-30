@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Add, BitXor};
 
-pub trait Ring: Add<Output = Self> + Sized + Clone + Copy + PartialEq + Eq + From<i32> {
+pub trait Ring: Add<Output = Self> + Sized +  Copy + Eq + From<i32> + Send + Sync {
     const ZERO: Self;
     const ONE: Self;
 }

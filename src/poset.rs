@@ -4,11 +4,12 @@ use std::{
     fmt::{self, Write},
 };
 
-use crate::lefschetz_complex::cell::Cell;
+use crate::lefschetz_complex::{Filter, cell::Cell};
 
 // We store full a list of successors, a strict partial order.
 #[derive(Debug, Clone)]
-pub struct Poset<P: PartialEq + Eq + Ord>(pub(crate) BTreeMap<P, Vec<P>>);
+pub struct Poset<P: Ord>(pub(crate) BTreeMap<P, Vec<P>>);
+pub type DepthPoset<T: Ord + Clone> = Vec<Poset<(Cell<T>, Cell<T>)>>;
 
 impl<P: PartialEq + Eq + Ord + Clone> Poset<P> {
     pub fn map<T: PartialEq + Eq + Ord + Clone, F: Fn(P) -> T>(self, f: F) -> Poset<T> {
@@ -150,6 +151,12 @@ impl<P: PartialEq + Eq + Ord + Clone> Poset<P> {
     }
 }
 
+impl Poset<(usize, usize)> {
+    pub fn permute(self, left_perm: &[usize], right_perm: &[usize]) -> Self {
+        self.map(|(left, right)| (left_perm[left], right_perm[right]))
+    }
+}
+
 ///Graphviz format
 impl<P: PartialEq + Eq + Ord + Clone + fmt::Display> fmt::Display for Poset<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -166,8 +173,9 @@ impl<P: PartialEq + Eq + Ord + Clone + fmt::Display> fmt::Display for Poset<P> {
 }
 
 // pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display + fmt::Debug>(
-pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display>(
-    depth_poset: &Vec<Poset<(Cell<T>, Cell<T>)>>,
+pub fn display_depth_poset<T: Ord + Clone + fmt::Display>(
+    depth_poset: &DepthPoset<T>,
+    filter: &Filter<T>,
 ) -> String {
     // println!("{:?}", depth_poset);
     let colors = [
@@ -179,7 +187,18 @@ pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display
     writeln!(
         &mut buffer,
         r#"digraph G {{
-    rankdir=BT;
+    label = "Filter: {}";"#,
+        filter
+            .iter()
+            .map(|cell| cell.to_string())
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+    .unwrap();
+
+    writeln!(
+        &mut buffer,
+        r#"rankdir=BT;
     node [shape=ellipse, style=filled, fontname="Arial"]"#
     )
     .unwrap();
@@ -188,13 +207,14 @@ pub fn display_depth_poset<T: PartialEq + Eq + Ord + Clone + Copy + fmt::Display
         writeln!(
             &mut buffer,
             r#"
-    subgraph cluster_0 {{
+    subgraph cluster_{dim} {{
         label = "dimension {dim}, depth {}";
         style = rounded;
         subgraph {{
             node [ fillcolor="{color}" ]
             rankdir=BT;"#,
-        poset.depth())
+            poset.depth()
+        )
         .unwrap();
 
         for (pred, succs) in poset.0.iter() {
@@ -277,13 +297,11 @@ mod test {
 
     #[test]
     fn depth() {
-
         let poset = Poset::<u32>::new(
             [1, 2, 3, 4, 5],
             [(2, 3), (3, 4), (4, 5), (1, 4)].into_iter(),
         );
 
         assert_eq!(poset.depth(), 3);
-
     }
 }

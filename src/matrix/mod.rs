@@ -6,7 +6,7 @@ use crate::{
 use itertools::Itertools;
 use std::{collections::BTreeSet, fmt};
 
-pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
+pub trait Matrix<R: Ring>: Sized + Eq + Clone + Send + Sync {
     fn from_rows<RowIt, It>(rows: It) -> Self
     where
         RowIt: ExactSizeIterator<Item = R>,
@@ -118,7 +118,7 @@ pub trait Matrix<R: Ring>: Sized + PartialEq + Eq + Clone {
         self
     }
 
-    fn permute(&self, row_perm: &Vec<usize>, col_perm: &Vec<usize>) -> Self
+    fn permute(&self, row_perm: &[usize], col_perm: &[usize]) -> Self
     where
         Self: std::fmt::Debug,
     {
